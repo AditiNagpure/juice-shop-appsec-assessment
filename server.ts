@@ -423,7 +423,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/SecurityAnswers', security.denyAll())
   app.use('/api/SecurityAnswers/:id', security.denyAll())
   /* REST API */
-  app.use('/rest/user/authentication-details', security.isAuthorized())
+  app.use('/rest/user/authentication-details', security.isAdmin())
   app.use('/rest/basket/:id', security.isAuthorized())
   app.use('/rest/basket/:id/order', security.isAuthorized())
   /* Challenge evaluation before finale takes over */ // vuln-code-snippet hide-start
@@ -448,6 +448,22 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/api/Users', verify.registerAdminChallenge())
   app.post('/api/Users', verify.passwordRepeatChallenge()) // vuln-code-snippet hide-end
   app.post('/api/Users', verify.emptyUserRegistration())
+
+      // FIX (CWE-521): enforce a server-side password policy at registration.
+    // Rejects passwords under 8 chars or lacking letter+number variety, and
+    // blocks a small set of common passwords. Runs before the user is created.
+    app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
+      const password: string = req.body.password ?? ''
+      const commonPasswords = ['password', '12345678', 'qwerty123', 'admin123', 'letmein1']
+      const longEnough = password.length >= 8
+      const hasLetterAndNumber = /[A-Za-z]/.test(password) && /[0-9]/.test(password)
+      const notCommon = !commonPasswords.includes(password.toLowerCase())
+      if (!longEnough || !hasLetterAndNumber || !notCommon) {
+        res.status(400).json({ error: 'Password must be at least 8 characters and include both letters and numbers.' })
+        return
+      }
+      next()
+    })
   /* Unauthorized users are not allowed to access B2B API */
   app.use('/b2b/v2', security.isAuthorized())
   /* Check if the quantity is available in stock and limit per user not exceeded, then add item to basket */

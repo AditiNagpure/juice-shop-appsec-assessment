@@ -162,6 +162,20 @@ export const isAccounting = () => {
   }
 }
 
+
+// FIX (CWE-284): admin-only authorization guard. Mirrors isAccounting() but
+// checks for the admin role, so endpoints that expose all users' details
+// require admin privileges rather than merely a valid session.
+export const isAdmin = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
+    if (decodedToken?.data?.role === roles.admin) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Requires admin privileges' })
+    }
+  }
+}
 export const isDeluxe = (req: Request) => {
   const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
