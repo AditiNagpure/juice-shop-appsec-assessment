@@ -16,6 +16,14 @@ export function retrieveBasket () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params.id
+      // FIX (CWE-639 / IDOR): enforce that the requested basket belongs to the
+      // authenticated user. The user's own basket id (bid) comes from the
+      // verified session token, not from the client-supplied :id param.
+      const user = security.authenticatedUsers.from(req)
+      if (!user || user.bid?.toString() !== id.toString()) {
+        res.status(401).json({ error: 'Unauthorized access to basket' })
+        return
+      }
       const basket = await BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       /* jshint eqeqeq:false */
       challengeUtils.solveIf(challenges.basketAccessChallenge, () => {
