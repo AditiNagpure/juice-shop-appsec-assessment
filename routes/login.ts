@@ -31,7 +31,17 @@ export function login () {
 
   return (req: Request, res: Response, next: NextFunction) => {
     verifyPreLoginChallenges(req) // vuln-code-snippet hide-line
-    models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`, { model: UserModel, plain: true }) // vuln-code-snippet vuln-line loginAdminChallenge loginBenderChallenge loginJimChallenge
+          // FIX (CWE-89): parameterized query. User input is bound as values via
+      // `bind`, so the driver treats it strictly as data — SQL control
+      // characters like ' OR 1=1-- can no longer alter the query structure.
+      models.sequelize.query(
+        `SELECT * FROM Users WHERE email = $email AND password = $password AND deletedAt IS NULL`,
+        {
+          model: UserModel,
+          plain: true,
+          bind: { email: req.body.email || '', password: security.hash(req.body.password || '') }
+        }
+      )
       .then((authenticatedUser) => { // vuln-code-snippet neutral-line loginAdminChallenge loginBenderChallenge loginJimChallenge
         const user = utils.queryResultToJson(authenticatedUser)
         if (user.data?.id && user.data.totpSecret !== '') {
